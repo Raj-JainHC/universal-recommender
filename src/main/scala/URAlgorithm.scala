@@ -156,6 +156,7 @@ case class URAlgorithmParams(
   // used as the subject of a dateRange in queries, specifies the name of the item property
   dateName: Option[String] = None,
   indicators: Option[List[IndicatorParams]] = None, // control params per matrix pair
+  excludeFields: Option[List[excludeField]] = None,
   seed: Option[Long] = None) // seed is not used presently
     extends Params //fixed default make it reproducible unless supplied
 
@@ -177,6 +178,8 @@ class URAlgorithm(val ap: URAlgorithmParams)
     }
   }
   case class FilterCorrelators(actionName: String, itemIDs: Seq[ItemID])
+
+  case class blacklistFields(name: String, values: List[String])
 
   val appName: String = ap.appName
   val recsModel: String = ap.recsModel.getOrElse(defaultURAlgorithmParams.DefaultRecsModel)
@@ -202,6 +205,8 @@ class URAlgorithm(val ap: URAlgorithmParams)
       throw new IllegalArgumentException("No eventNames or indicators in engine.json and one of these is required")
     } else ap.eventNames.get
   } else ap.indicators.get.map(_.name)
+
+  val excludeFields: List[excludeField] = ap.excludeFields.getOrElse(List.empty)
 
   // Unique by 'type' ranking params, if collision get first.
   lazy val rankingsParams: Seq[RankingParams] = ap.rankings.getOrElse(Seq(RankingParams(
@@ -614,9 +619,22 @@ class URAlgorithm(val ap: URAlgorithmParams)
   }
 
   /** Build not must query part */
-  def buildQueryMustNot(query: Query, events: Seq[Event]): JValue = {
+  def buildQueryMustNot(query: Query, events: Seq[Event]): List[JValue] = {
+    var excludeFieldsList = List[JValue]()
+    val paramsBlacklistField = excludeFields
+    val queryBlacklistField = query.excludeFields.getOrElse(List.empty)
+
+    //de-duplicate common fields provided in engine.json and query
+    val deduplicateFields = (paramsBlacklistField ::: queryBlacklistField).map(field => blacklistFields(field.name, field.values)).distinct
+
+    deduplicateFields.foreach { field =>
+      val excludeFieldJValue: JValue = render("terms" -> (field.name -> field.values))
+      excludeFieldsList ::= excludeFieldJValue
+    }
+
     val mustNotFields: JValue = render("ids" -> ("values" -> getExcludedItems(events, query)) ~ ("boost" -> 0))
-    mustNotFields
+    excludeFieldsList ::= mustNotFields
+    excludeFieldsList
   }
 
   /** Build sort query part */
