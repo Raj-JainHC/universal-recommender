@@ -10,7 +10,7 @@ version := "0.5.0"
 
 organization := "com.actionml"
 
-val mahoutVersion = "0.13.0-SNAPSHOT"
+val mahoutVersion = "0.13.0"
 
 val pioVersion = "0.10.0-incubating"
 
