@@ -79,7 +79,11 @@ class URModel(
     val esFields: List[String] = esRDD.flatMap(_.keySet).distinct().collect.toList
     logger.info(s"ES fields[${esFields.size}]: $esFields")
 
-    EsClient.hotSwap(esIndex, esType, esRDD, esFields, typeMappings)
+    val skipField = "item_properties"
+    val esAllowedFields: List[String] = esFields.filterNot(elm => elm == skipField)
+    logger.info(s"ES final fields[${esAllowedFields.size}]: $esAllowedFields")
+
+    EsClient.hotSwap(esIndex, esType, esRDD, esAllowedFields, typeMappings)
     true
   }
 
